@@ -1,7 +1,7 @@
 import { useState } from "react";
 import type { ActionFunctionArgs, LoaderFunctionArgs } from "@remix-run/node";
 import { redirect } from "@remix-run/node";
-import { Form, useActionData, useNavigation } from "@remix-run/react";
+import { useActionData, useNavigation, useSubmit } from "@remix-run/react";
 import {
   Page, Card, FormLayout, TextField, Select, Button, BlockStack, Banner, Text,
 } from "@shopify/polaris";
@@ -67,29 +67,42 @@ export const action = async ({ request }: ActionFunctionArgs) => {
 export default function NewReprint() {
   const actionData = useActionData<typeof action>();
   const nav = useNavigation();
+  const submit = useSubmit();
   const submitting = nav.state === "submitting";
+  const [orderName, setOrderName] = useState("");
   const [reason, setReason] = useState("misprint");
+  const [notes, setNotes] = useState("");
+  const [raisedBy, setRaisedBy] = useState("");
+
+  const onSubmit = () => {
+    const fd = new FormData();
+    fd.set("orderName", orderName);
+    fd.set("reason", reason);
+    fd.set("notes", notes);
+    fd.set("raisedBy", raisedBy);
+    submit(fd, { method: "post" });
+  };
 
   return (
     <Page title="Raise a reprint" backAction={{ content: "Reprints", url: "/app" }}>
       <Card>
-        {actionData?.error ? (
-          <Banner tone="critical" title={actionData.error} />
-        ) : null}
-        <Form method="post">
+        <BlockStack gap="300">
+          {actionData?.error ? <Banner tone="critical" title={actionData.error} /> : null}
           <FormLayout>
-            <TextField label="Order number" name="orderName" autoComplete="off"
-              placeholder="#DTFN24609" helpText="Optional — links the original Shopify order for context." />
-            <Select label="Reason" name="reason" options={REASONS} value={reason} onChange={setReason} />
-            <TextField label="Notes" name="notes" autoComplete="off" multiline={3}
-              placeholder="What went wrong?" />
-            <TextField label="Your name" name="raisedBy" autoComplete="off" placeholder="e.g. Hannah" />
+            <TextField label="Order number" value={orderName} onChange={setOrderName}
+              autoComplete="off" placeholder="#DTFN24609"
+              helpText="Optional — links the original Shopify order for context." />
+            <Select label="Reason" options={REASONS} value={reason} onChange={setReason} />
+            <TextField label="Notes" value={notes} onChange={setNotes} autoComplete="off"
+              multiline={3} placeholder="What went wrong?" />
+            <TextField label="Your name" value={raisedBy} onChange={setRaisedBy}
+              autoComplete="off" placeholder="e.g. Hannah" />
             <Text as="p" variant="bodySm" tone="subdued">
               Raising posts an alert to Slack #reprint-request so the team is notified.
             </Text>
-            <Button submit variant="primary" loading={submitting}>Raise reprint</Button>
+            <Button variant="primary" loading={submitting} onClick={onSubmit}>Raise reprint</Button>
           </FormLayout>
-        </Form>
+        </BlockStack>
       </Card>
     </Page>
   );
