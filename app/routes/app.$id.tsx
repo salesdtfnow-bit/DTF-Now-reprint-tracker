@@ -77,6 +77,15 @@ export const action = async ({ request, params }: ActionFunctionArgs) => {
   const r = await db.reprintRequest.findFirst({ where: { id: params.id, shop } });
   if (!r) throw new Response("Not found", { status: 404 });
 
+  // Delete (admin only — behind the PIN).
+  if (String(form.get("_action")) === "delete") {
+    if (pinConfigured() && !(await isUnlocked(request))) {
+      return { error: "Enter the PIN in Settings before deleting." };
+    }
+    await db.reprintRequest.delete({ where: { id: r.id } });
+    return redirect("/app");
+  }
+
   const lengthM = parseFloat(String(form.get("lengthM")));
   const minutes = parseFloat(String(form.get("minutes")));
   const reposted = String(form.get("reposted")) === "yes";
@@ -150,6 +159,14 @@ export default function Detail() {
     fd.set("completedBy", completedBy);
     fd.set("shippingService", shippingService);
     fd.set("shippingCost", String(shippingCostByName[shippingService] ?? 0));
+    fd.set("_action", "complete");
+    submit(fd, { method: "post" });
+  };
+
+  const onDelete = () => {
+    if (!window.confirm("Delete this reprint permanently? This cannot be undone.")) return;
+    const fd = new FormData();
+    fd.set("_action", "delete");
     submit(fd, { method: "post" });
   };
 
@@ -166,6 +183,7 @@ export default function Detail() {
     <Page
       title={`Reprint ${r.orderName ?? ""}`.trim()}
       backAction={{ content: "Reprints", url: "/app" }}
+      secondaryActions={showCosts ? [{ content: "Delete", destructive: true, onAction: onDelete }] : []}
       titleMetadata={
         r.status === "pending" ? <Badge tone="attention">Pending</Badge>
         : r.status === "written_off" ? <Badge tone="critical">Written off</Badge>
