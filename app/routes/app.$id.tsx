@@ -16,6 +16,7 @@ import { lookupOrderByName } from "../lib/orders.server";
 import { postCompletionUpdate } from "../lib/slack.server";
 import { computeLoss, estimateMinutes, gbp, REASONS } from "../lib/loss";
 import { isUnlocked, pinConfigured } from "../lib/pin.server";
+import { PROGRESS_STAGES, deriveCarrier } from "../lib/tracking";
 
 function orderAdminUrl(
   shop: string,
@@ -67,6 +68,9 @@ export const loader = async ({ request, params }: LoaderFunctionArgs) => {
     },
     // Cost breakdown is only shown to PIN-holders; staff see the Loss total only.
     showCosts: !pinConfigured() || (await isUnlocked(request)),
+    publicTrackUrl: r.publicToken && process.env.SHOPIFY_APP_URL
+      ? `${process.env.SHOPIFY_APP_URL.replace(/\/$/, "")}/track/${r.publicToken}`
+      : null,
   };
 };
 
@@ -76,6 +80,18 @@ export const action = async ({ request, params }: ActionFunctionArgs) => {
   const form = await request.formData();
   const r = await db.reprintRequest.findFirst({ where: { id: params.id, shop } });
   if (!r) throw new Response("Not found", { status: 404 });
+
+  // Update customer-facing progress + tracking (any staff).
+  if (String(form.get("_action")) === "progress") {
+    const progress = String(form.get("progress") ?? "received");
+    const trackingNumber = String(form.get("trackingNumber") ?? "").trim() || null;
+    const trackingCarrier = String(form.get("trackingCarrier") ?? "").trim() || null;
+    await db.reprintRequest.update({
+      where: { id: r.id },
+      data: { progress, trackingNumber, trackingCarrier },
+    });
+    return redirect(`/app/${r.id}`);
+  }
 
   // Delete (admin only — behind the PIN).
   if (String(form.get("_action")) === "delete") {
@@ -124,7 +140,7 @@ export const action = async ({ request, params }: ActionFunctionArgs) => {
 const reasonLabel = (v: string) => REASONS.find((x) => x.value === v)?.label ?? v;
 
 export default function Detail() {
-  const { r, order, orderUrl, loss, employees, shipping, time, showCosts } = useLoaderData<typeof loader>();
+  const { r, order, orderUrl, loss, employees, shipping, time, showCosts, publicTrackUrl } = useLoaderData<typeof loader>();
   const nav = useNavigation();
   const submit = useSubmit();
   const submitting = nav.state === "submitting";
@@ -167,6 +183,20 @@ export default function Detail() {
     if (!window.confirm("Delete this reprint permanently? This cannot be undone.")) return;
     const fd = new FormData();
     fd.set("_action", "delete");
+    submit(fd, { method: "post" });
+  };
+
+  const [progress, setProgress] = useState(r.progress ?? "received");
+  const [trackingNumber, setTrackingNumber] = useState(r.trackingNumber ?? "");
+  const [trackingCarrier, setTrackingCarrier] = useState(
+    r.trackingCarrier ?? deriveCarrier(r.shippingService),
+  );
+  const saveProgress = () => {
+    const fd = new FormData();
+    fd.set("_action", "progress");
+    fd.set("progress", progress);
+    fd.set("trackingNumber", trackingNumber);
+    fd.set("trackingCarrier", trackingCarrier);
     submit(fd, { method: "post" });
   };
 
@@ -228,6 +258,33 @@ export default function Detail() {
             </BlockStack>
           </Card>
         ) : null}
+
+        <Card>
+          <BlockStack gap="300">
+            <Text as="h2" variant="headingMd">Customer update</Text>
+            <Text as="p" tone="subdued">Drives the customer's tracking page and the link they were emailed.</Text>
+            <FormLayout>
+              <Select label="Progress" value={progress} onChange={setProgress}
+                options={PROGRESS_STAGES.map((s) => ({ label: s.label, value: s.value }))} />
+              <FormLayout.Group>
+                <TextField label="Tracking number" value={trackingNumber} onChange={setTrackingNumber}
+                  autoComplete="off" placeholder="Enter when dispatched" />
+                <Select label="Carrier" value={trackingCarrier} onChange={setTrackingCarrier}
+                  options={[
+                    { label: "DPD", value: "dpd" },
+                    { label: "Royal Mail", value: "royal_mail" },
+                    { label: "Other / no link", value: "other" },
+                  ]} />
+              </FormLayout.Group>
+              <Button variant="primary" loading={submitting} onClick={saveProgress}>Save customer update</Button>
+              {publicTrackUrl ? (
+                <Text as="p" variant="bodySm" tone="subdued">
+                  Customer link: <Link url={publicTrackUrl} target="_blank">{publicTrackUrl}</Link>
+                </Text>
+              ) : null}
+            </FormLayout>
+          </BlockStack>
+        </Card>
 
         {isOpen ? (
           <Card>

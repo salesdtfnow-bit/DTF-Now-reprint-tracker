@@ -6,11 +6,14 @@ import {
   Page, Card, FormLayout, TextField, Select, Button, BlockStack, Banner, Text,
 } from "@shopify/polaris";
 
+import { randomBytes } from "crypto";
+
 import { authenticate } from "../shopify.server";
 import db from "../db.server";
 import { getSettings } from "../lib/settings.server";
 import { postReprintAlert } from "../lib/slack.server";
 import { lookupOrderByName } from "../lib/orders.server";
+import { sendTrackingEmail } from "../lib/email.server";
 import { REASONS } from "../lib/loss";
 
 export const loader = async ({ request }: LoaderFunctionArgs) => {
@@ -30,27 +33,32 @@ export const action = async ({ request }: ActionFunctionArgs) => {
 
   if (!reason) return { error: "Please choose a reason." };
 
-  // Optional: resolve the order to validate + store its GID for context.
+  // Optional: resolve the order to validate + store its GID and customer email.
   let orderName: string | null = orderNameRaw || null;
   let orderGid: string | null = null;
+  let customerEmail: string | null = null;
   if (orderNameRaw) {
     try {
       const ord = await lookupOrderByName(admin, orderNameRaw);
-      if (ord) { orderName = ord.name; orderGid = ord.gid; }
+      if (ord) { orderName = ord.name; orderGid = ord.gid; customerEmail = ord.email; }
     } catch (e) {
       // non-fatal: keep the typed name even if lookup fails
     }
   }
 
   const settings = await getSettings(shop);
+  const publicToken = randomBytes(16).toString("hex");
 
   const created = await db.reprintRequest.create({
-    data: { shop, orderName, orderGid, reason, notes: notes || null, raisedBy: raisedBy || null },
+    data: {
+      shop, orderName, orderGid, reason,
+      notes: notes || null, raisedBy: raisedBy || null,
+      publicToken, customerEmail,
+    },
   });
 
-  // Build a deep link back into the embedded app for the Slack message.
-  const appHandle = process.env.SHOPIFY_APP_HANDLE;
   const storeHandle = shop.replace(".myshopify.com", "");
+  const appHandle = process.env.SHOPIFY_APP_HANDLE;
   const appUrl = appHandle
     ? `https://admin.shopify.com/store/${storeHandle}/apps/${appHandle}/app/${created.id}`
     : null;
@@ -60,6 +68,12 @@ export const action = async ({ request }: ActionFunctionArgs) => {
     orderName, reason, notes: notes || null, raisedBy: raisedBy || null, appUrl,
   });
   if (ts) await db.reprintRequest.update({ where: { id: created.id }, data: { slackTs: ts } });
+
+  // Email the customer their tracking link (best-effort).
+  if (customerEmail && process.env.SHOPIFY_APP_URL) {
+    const trackUrl = `${process.env.SHOPIFY_APP_URL.replace(/\/$/, "")}/track/${publicToken}`;
+    await sendTrackingEmail({ to: customerEmail, orderName, trackUrl });
+  }
 
   return redirect(`/app/${created.id}`);
 };

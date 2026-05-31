@@ -7,6 +7,7 @@ type OrderInfo = {
   totalPrice: string;
   currency: string;
   customer: string | null;
+  email: string | null;
   financialStatus: string | null;
   fulfillmentStatus: string | null;
 } | null;
@@ -24,6 +25,7 @@ export async function lookupOrderByName(
         nodes {
           id
           name
+          email
           displayFinancialStatus
           displayFulfillmentStatus
           customer { displayName }
@@ -42,6 +44,7 @@ export async function lookupOrderByName(
     totalPrice: node.totalPriceSet?.shopMoney?.amount ?? "0",
     currency: node.totalPriceSet?.shopMoney?.currencyCode ?? "GBP",
     customer: node.customer?.displayName ?? null,
+    email: node.email ?? null,
     financialStatus: node.displayFinancialStatus ?? null,
     fulfillmentStatus: node.displayFulfillmentStatus ?? null,
   };
