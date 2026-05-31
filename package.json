@@ -17,7 +17,7 @@
     "prisma": "prisma",
     "graphql-codegen": "graphql-codegen",
     "vite": "vite",
-    "vercel-build": "prisma generate && prisma db push && remix vite:build",
+    "vercel-build": "prisma generate && prisma db push --accept-data-loss && remix vite:build",
     "postinstall": "prisma generate"
   },
   "type": "module",
