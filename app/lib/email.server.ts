@@ -16,7 +16,7 @@ export async function sendTrackingEmail(opts: {
   if (!opts.to) return false;
 
   const from = process.env.EMAIL_FROM || "DTF Now <support@dtfnow.co.uk>";
-  const orderBit = opts.orderName ? ` (order ${opts.orderName})` : "";
+  const orderBit = opts.orderName ? ` ${opts.orderName}` : "";
   const subject = `Your DTF Now reprint is underway${opts.orderName ? ` — order ${opts.orderName}` : ""}`;
   const url = opts.trackUrl;
   const html = `
@@ -30,7 +30,7 @@ export async function sendTrackingEmail(opts: {
           <h1 style="margin:0 0 16px;font-size:22px;color:#1a1d21;">Your reprint is underway</h1>
           <p style="margin:0 0 14px;font-size:15px;line-height:1.55;color:#3c4043;">Hi,</p>
           <p style="margin:0 0 14px;font-size:15px;line-height:1.55;color:#3c4043;">
-            We're sorry for any inconvenience with your order${orderBit}. We've got it covered — your reprint is already in production and on its way to you.
+            We're sorry for any inconvenience with your order${orderBit}. We've got it covered — your reprint is recorded and will be addressed ASAP.
           </p>
           <p style="margin:0 0 24px;font-size:15px;line-height:1.55;color:#3c4043;">
             You can follow its progress and get your tracking number any time using the button below.
