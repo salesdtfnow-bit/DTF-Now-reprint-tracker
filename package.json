@@ -41,7 +41,7 @@
     "react-dom": "^18.2.0",
     "vite-tsconfig-paths": "^5.0.1",
     "@vercel/remix": "^2.16.7",
-    "@prisma/extension-accelerate": "^1.2.1"
+    "@prisma/extension-accelerate": "^3.0.1"
   },
   "devDependencies": {
     "@remix-run/eslint-config": "2.16.7",
