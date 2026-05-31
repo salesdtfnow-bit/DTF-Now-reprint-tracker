@@ -19,12 +19,13 @@ export async function sendTrackingEmail(opts: {
   const orderBit = opts.orderName ? ` ${opts.orderName}` : "";
   const subject = `Your DTF Now reprint is underway${opts.orderName ? ` — order ${opts.orderName}` : ""}`;
   const url = opts.trackUrl;
+  const logoUrl = (process.env.SHOPIFY_APP_URL || "").replace(/\/$/, "") + "/dtf-now-logo.png";
   const html = `
   <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background:#f4f5f7;margin:0;padding:24px 0;font-family:Arial,Helvetica,sans-serif;">
     <tr><td align="center">
       <table role="presentation" width="540" cellpadding="0" cellspacing="0" style="width:540px;max-width:100%;background:#ffffff;border:1px solid #e6e8eb;border-radius:12px;overflow:hidden;">
-        <tr><td style="background:#1a1d21;padding:18px 28px;">
-          <span style="color:#ffffff;font-size:20px;font-weight:bold;letter-spacing:.5px;">DTF&nbsp;Now</span>
+        <tr><td align="center" style="background:#ffffff;padding:22px 28px;border-bottom:1px solid #eef0f2;">
+          <img src="${logoUrl}" alt="DTF Now" width="170" style="display:block;border:0;height:auto;width:170px;max-width:170px;margin:0 auto;" />
         </td></tr>
         <tr><td style="padding:30px 28px;">
           <h1 style="margin:0 0 16px;font-size:22px;color:#1a1d21;">Your reprint is underway</h1>

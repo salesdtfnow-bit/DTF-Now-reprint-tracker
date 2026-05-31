@@ -31,7 +31,8 @@ export default function Track() {
       color: "#1a1d21", padding: "32px 16px" }}>
       <div style={{ maxWidth: 540, margin: "0 auto", background: "#fff", border: "1px solid #e6e8eb",
         borderRadius: 14, padding: "28px 26px", boxShadow: "0 1px 3px rgba(0,0,0,.04)" }}>
-        <div style={{ fontWeight: 700, fontSize: 20, marginBottom: 4 }}>DTF Now</div>
+        <img src="/dtf-now-logo.png" alt="DTF Now"
+          style={{ height: 46, width: "auto", marginBottom: 14, display: "block" }} />
         <div style={{ color: "#6b7280", marginBottom: 22 }}>
           Reprint status{d.orderName ? ` for order ${d.orderName}` : ""}
         </div>
