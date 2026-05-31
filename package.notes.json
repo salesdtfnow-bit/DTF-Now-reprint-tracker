@@ -1,0 +1,7 @@
+{
+  "_README": "The Shopify CLI generates package.json for you. After scaffolding, add the dependency below for Vercel deploys, then run `npm install`.",
+  "dependencies_to_add": {
+    "@vercel/remix": "^2.15.0"
+  },
+  "note": "Slack posting uses the built-in fetch(), so no Slack SDK dependency is required."
+}
