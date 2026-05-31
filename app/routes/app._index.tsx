@@ -3,17 +3,28 @@ import type { LoaderFunctionArgs } from "@remix-run/node";
 import { useLoaderData, useNavigate, useSearchParams } from "@remix-run/react";
 import {
   Page, Card, IndexTable, Badge, Text, Button, InlineGrid, BlockStack,
-  ButtonGroup, EmptyState, Banner,
+  ButtonGroup, EmptyState,
 } from "@shopify/polaris";
 
 import { authenticate } from "../shopify.server";
 import db from "../db.server";
-import { getSettings } from "../lib/settings.server";
+import { getSettings, ensureSeeded } from "../lib/settings.server";
 import { computeLoss, gbp, REASONS } from "../lib/loss";
+
+// Build the Shopify admin URL for an order from its GID.
+function orderAdminUrl(shop: string, orderGid: string | null): string | null {
+  if (!orderGid) return null;
+  const id = orderGid.split("/").pop();
+  if (!id) return null;
+  const handle = shop.replace(".myshopify.com", "");
+  return `https://admin.shopify.com/store/${handle}/orders/${id}`;
+}
 
 export const loader = async ({ request }: LoaderFunctionArgs) => {
   const { session } = await authenticate.admin(request);
   const shop = session.shop;
+  await ensureSeeded(shop);
+
   const url = new URL(request.url);
   const filter = url.searchParams.get("status") ?? "all";
 
@@ -31,12 +42,16 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
   const totalLoss = done.reduce((s, r) => s + computeLoss(r, rates).total, 0);
   const metres = done.reduce((s, r) => s + (r.lengthM ?? 0), 0);
   const minutes = done.reduce((s, r) => s + (r.minutes ?? 0), 0);
+  const shipping = done.reduce((s, r) => s + (r.shippingCost ?? 0), 0);
   const pendingCount = await db.reprintRequest.count({ where: { shop, status: "pending" } });
 
   return {
-    requests: requests.map((r) => ({ ...r, loss: computeLoss(r, rates).total })),
-    rates,
-    kpis: { totalLoss, metres, hours: minutes / 60, completed: done.length, pendingCount },
+    requests: requests.map((r) => ({
+      ...r,
+      loss: computeLoss(r, rates).total,
+      orderUrl: orderAdminUrl(shop, r.orderGid),
+    })),
+    kpis: { totalLoss, metres, hours: minutes / 60, shipping, completed: done.length, pendingCount },
     filter,
   };
 };
@@ -58,14 +73,31 @@ export default function Index() {
   const kpiCards = [
     { label: "Open requests", value: String(kpis.pendingCount) },
     { label: "Completed", value: String(kpis.completed) },
-    { label: "Film used", value: `${kpis.metres.toFixed(1)} m` },
     { label: "Time lost", value: `${kpis.hours.toFixed(1)} h` },
+    { label: "Shipping lost", value: gbp(kpis.shipping) },
     { label: "True loss", value: gbp(kpis.totalLoss) },
   ];
 
   const rowMarkup = requests.map((r, i) => (
     <IndexTable.Row id={r.id} key={r.id} position={i} onClick={() => navigate(`/app/${r.id}`)}>
-      <IndexTable.Cell>{r.orderName ?? "—"}</IndexTable.Cell>
+      <IndexTable.Cell>
+        {r.orderName ? (
+          r.orderUrl ? (
+            <a
+              href={r.orderUrl}
+              target="_top"
+              onClick={(e) => e.stopPropagation()}
+              style={{ color: "#2563eb", textDecoration: "none" }}
+            >
+              {r.orderName}
+            </a>
+          ) : (
+            r.orderName
+          )
+        ) : (
+          "—"
+        )}
+      </IndexTable.Cell>
       <IndexTable.Cell>{reasonLabel(r.reason)}</IndexTable.Cell>
       <IndexTable.Cell>{r.raisedBy ?? "—"}</IndexTable.Cell>
       <IndexTable.Cell><StatusBadge status={r.status} /></IndexTable.Cell>

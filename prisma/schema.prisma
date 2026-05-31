@@ -45,11 +45,14 @@ model ReprintRequest {
   status      String    @default("pending") // pending | done | written_off
   raisedBy    String?
 
-  lengthM     Float?
-  minutes     Float?
-  reposted    Boolean?
-  completedBy String?
-  completedAt DateTime?
+  lengthM         Float?
+  minutes         Float?
+  reposted        Boolean?
+  completedBy     String?
+  completedAt     DateTime?
+
+  shippingService String?   // name of the DPD/RM service used to reship
+  shippingCost    Float?    // real carrier cost of the reship
 
   slackTs     String?
 
@@ -66,5 +69,28 @@ model Settings {
   labourPerH     Float    @default(14.15)
   machinePerH    Float    @default(8.0)
   slackChannelId String   @default("C0B7S8W09R6")
+  seeded         Boolean  @default(false) // employees + shipping rates seeded
   updatedAt      DateTime @updatedAt
+}
+
+model Employee {
+  id        String   @id @default(cuid())
+  shop      String
+  name      String
+  active    Boolean  @default(true)
+  createdAt DateTime @default(now())
+
+  @@index([shop, active])
+}
+
+model ShippingRate {
+  id        String   @id @default(cuid())
+  shop      String
+  name      String
+  cost      Float    @default(0)
+  active    Boolean  @default(true)
+  sortOrder Int      @default(0)
+  createdAt DateTime @default(now())
+
+  @@index([shop, active])
 }
