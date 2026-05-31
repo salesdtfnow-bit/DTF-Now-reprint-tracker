@@ -6,7 +6,7 @@
 client_id = "9c2a00b60370faa5a0c2ba214180bf03"
 name = "dtfnow-reprint-tracker"
 handle = "dtfnow-reprint-tracker"
-application_url = "https://REPLACE-WITH-YOUR-APP.vercel.app"
+application_url = "https://reprint.dtfnow.co.uk"
 embedded = true
 
 [access_scopes]
@@ -15,9 +15,9 @@ scopes = "read_orders"
 
 [auth]
 redirect_urls = [
-  "https://REPLACE-WITH-YOUR-APP.vercel.app/auth/callback",
-  "https://REPLACE-WITH-YOUR-APP.vercel.app/auth/shopify/callback",
-  "https://REPLACE-WITH-YOUR-APP.vercel.app/api/auth/callback"
+  "https://reprint.dtfnow.co.uk/auth/callback",
+  "https://reprint.dtfnow.co.uk/auth/shopify/callback",
+  "https://reprint.dtfnow.co.uk/api/auth/callback"
 ]
 
 [webhooks]
