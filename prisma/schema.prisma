@@ -69,6 +69,13 @@ model Settings {
   labourPerH     Float    @default(14.15)
   machinePerH    Float    @default(8.0)
   slackChannelId String   @default("C0B7S8W09R6")
+
+  // Auto time-estimate model (minutes): processing + rip/m + print(length/speed) + pack
+  processingMin  Float    @default(1.5)
+  ripMinPerM     Float    @default(2.5)
+  printSpeedMph  Float    @default(23)
+  packMin        Float    @default(3)
+
   seeded         Boolean  @default(false) // employees + shipping rates seeded
   updatedAt      DateTime @updatedAt
 }

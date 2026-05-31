@@ -61,6 +61,10 @@ export const action = async ({ request }: ActionFunctionArgs) => {
       labourPerH: num("labourPerH"),
       machinePerH: num("machinePerH"),
       slackChannelId: String(form.get("slackChannelId") ?? "").trim() || "C0B7S8W09R6",
+      processingMin: num("processingMin"),
+      ripMinPerM: num("ripMinPerM"),
+      printSpeedMph: num("printSpeedMph"),
+      packMin: num("packMin"),
     });
     return { saved: "rates" };
   }
@@ -134,6 +138,10 @@ function SettingsInner({ data }: { data: any }) {
   const [labour, setLabour] = useState(String(settings!.labourPerH));
   const [machine, setMachine] = useState(String(settings!.machinePerH));
   const [channel, setChannel] = useState(settings!.slackChannelId);
+  const [processingMin, setProcessingMin] = useState(String(settings!.processingMin));
+  const [ripMinPerM, setRipMinPerM] = useState(String(settings!.ripMinPerM));
+  const [printSpeedMph, setPrintSpeedMph] = useState(String(settings!.printSpeedMph));
+  const [packMin, setPackMin] = useState(String(settings!.packMin));
   const [newEmployee, setNewEmployee] = useState("");
   const [newShipName, setNewShipName] = useState("");
   const [newShipCost, setNewShipCost] = useState("");
@@ -174,7 +182,32 @@ function SettingsInner({ data }: { data: any }) {
                 helpText="Where new-reprint alerts are posted. #reprint-request = C0B7S8W09R6." />
               <Button variant="primary" loading={saving} onClick={() => post({
                 _action: "saveRates", filmPerM: film, labourPerH: labour, machinePerH: machine, slackChannelId: channel,
+                processingMin, ripMinPerM, printSpeedMph, packMin,
               })}>Save rates</Button>
+            </FormLayout>
+          </BlockStack>
+        </Card>
+
+        {/* Time estimate model */}
+        <Card>
+          <BlockStack gap="300">
+            <Text as="h2" variant="headingMd">Time estimate</Text>
+            <Text as="p" tone="subdued">
+              How job time is auto-calculated from reprint length: processing + (rip/m × length) + (length ÷ print speed) + pack.
+            </Text>
+            <FormLayout>
+              <FormLayout.Group>
+                <TextField label="Processing (mins, fixed)" type="number" value={processingMin} onChange={setProcessingMin} autoComplete="off" min={0} step={0.1} />
+                <TextField label="Pack & post (mins, fixed)" type="number" value={packMin} onChange={setPackMin} autoComplete="off" min={0} step={0.1} />
+              </FormLayout.Group>
+              <FormLayout.Group>
+                <TextField label="RIP (mins per metre)" type="number" value={ripMinPerM} onChange={setRipMinPerM} autoComplete="off" min={0} step={0.1} />
+                <TextField label="Print speed (metres per hour)" type="number" value={printSpeedMph} onChange={setPrintSpeedMph} autoComplete="off" min={0} step={0.1} />
+              </FormLayout.Group>
+              <Button variant="primary" loading={saving} onClick={() => post({
+                _action: "saveRates", filmPerM: film, labourPerH: labour, machinePerH: machine, slackChannelId: channel,
+                processingMin, ripMinPerM, printSpeedMph, packMin,
+              })}>Save time model</Button>
             </FormLayout>
           </BlockStack>
         </Card>

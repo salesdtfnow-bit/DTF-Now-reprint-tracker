@@ -9,7 +9,16 @@ export async function getSettings(shop: string) {
 
 export async function saveSettings(
   shop: string,
-  data: { filmPerM: number; labourPerH: number; machinePerH: number; slackChannelId: string },
+  data: {
+    filmPerM: number;
+    labourPerH: number;
+    machinePerH: number;
+    slackChannelId: string;
+    processingMin: number;
+    ripMinPerM: number;
+    printSpeedMph: number;
+    packMin: number;
+  },
 ) {
   return db.settings.upsert({
     where: { shop },

@@ -14,13 +14,25 @@ import { listEmployees } from "../lib/employees.server";
 import { listShipping } from "../lib/shipping.server";
 import { lookupOrderByName } from "../lib/orders.server";
 import { postCompletionUpdate } from "../lib/slack.server";
-import { computeLoss, gbp, REASONS } from "../lib/loss";
+import { computeLoss, estimateMinutes, gbp, REASONS } from "../lib/loss";
+import { isUnlocked, pinConfigured } from "../lib/pin.server";
 
-function orderAdminUrl(shop: string, orderGid: string | null): string | null {
-  if (!orderGid) return null;
-  const id = orderGid.split("/").pop();
-  if (!id) return null;
-  return `https://admin.shopify.com/store/${shop.replace(".myshopify.com", "")}/orders/${id}`;
+function orderAdminUrl(
+  shop: string,
+  orderName: string | null,
+  orderGid: string | null,
+): string | null {
+  const handle = shop.replace(".myshopify.com", "");
+  if (orderGid) {
+    const id = orderGid.split("/").pop();
+    if (id) return `https://admin.shopify.com/store/${handle}/orders/${id}`;
+  }
+  if (orderName) {
+    return `https://admin.shopify.com/store/${handle}/orders?query=${encodeURIComponent(
+      orderName.replace(/^#/, ""),
+    )}`;
+  }
+  return null;
 }
 
 export const loader = async ({ request, params }: LoaderFunctionArgs) => {
@@ -43,10 +55,18 @@ export const loader = async ({ request, params }: LoaderFunctionArgs) => {
   return {
     r,
     order,
-    orderUrl: orderAdminUrl(shop, r.orderGid),
+    orderUrl: orderAdminUrl(shop, r.orderName, r.orderGid ?? order?.gid ?? null),
     loss: computeLoss(r, settings),
     employees: employees.map((e) => e.name),
     shipping: shipping.map((s) => ({ name: s.name, cost: s.cost })),
+    time: {
+      processingMin: settings.processingMin,
+      ripMinPerM: settings.ripMinPerM,
+      printSpeedMph: settings.printSpeedMph,
+      packMin: settings.packMin,
+    },
+    // Cost breakdown is only shown to PIN-holders; staff see the Loss total only.
+    showCosts: !pinConfigured() || (await isUnlocked(request)),
   };
 };
 
@@ -95,7 +115,7 @@ export const action = async ({ request, params }: ActionFunctionArgs) => {
 const reasonLabel = (v: string) => REASONS.find((x) => x.value === v)?.label ?? v;
 
 export default function Detail() {
-  const { r, order, orderUrl, loss, employees, shipping } = useLoaderData<typeof loader>();
+  const { r, order, orderUrl, loss, employees, shipping, time, showCosts } = useLoaderData<typeof loader>();
   const nav = useNavigation();
   const submit = useSubmit();
   const submitting = nav.state === "submitting";
@@ -104,8 +124,18 @@ export default function Detail() {
   const shippingCostByName: Record<string, number> = {};
   shipping.forEach((s) => { shippingCostByName[s.name] = s.cost; });
 
+  const estimate = (len: string) => String(estimateMinutes(parseFloat(len), time));
+
   const [lengthM, setLength] = useState(r.lengthM != null ? String(r.lengthM) : "");
-  const [minutes, setMinutes] = useState(r.minutes != null ? String(r.minutes) : "");
+  const [minutes, setMinutes] = useState(
+    r.minutes != null ? String(r.minutes) : (r.lengthM != null ? estimate(String(r.lengthM)) : ""),
+  );
+
+  // Auto-fill the time estimate whenever length changes (still editable).
+  const onLengthChange = (v: string) => {
+    setLength(v);
+    setMinutes(v ? estimate(v) : "");
+  };
   const [reposted, setReposted] = useState(r.reposted === false ? "no" : "yes");
   const [completedBy, setCompletedBy] = useState(r.completedBy ?? "");
   const [shippingService, setShippingService] = useState(
@@ -188,9 +218,11 @@ export default function Detail() {
               <FormLayout>
                 <FormLayout.Group>
                   <TextField label="Reprint length (m)" type="number" value={lengthM}
-                    onChange={setLength} autoComplete="off" min={0} step={0.1} />
+                    onChange={onLengthChange} autoComplete="off" min={0} step={0.1}
+                    helpText="Drives the auto time estimate." />
                   <TextField label="Time taken (mins)" type="number" value={minutes}
-                    onChange={setMinutes} autoComplete="off" min={0} step={1} />
+                    onChange={setMinutes} autoComplete="off" min={0} step={0.1}
+                    helpText="Auto-calculated from length — edit if it differs." />
                 </FormLayout.Group>
                 <Select label="Outcome" value={reposted} onChange={setReposted}
                   options={[
@@ -218,13 +250,17 @@ export default function Detail() {
                 <Box><Text as="span" tone="subdued">Reshipping</Text><div>{r.shippingService ?? "—"}</div></Box>
               </InlineGrid>
               <Divider />
-              <InlineGrid columns={{ xs: 2, sm: 5 }} gap="300">
-                <Box><Text as="span" tone="subdued">Material</Text><div>{gbp(loss.material)}</div></Box>
-                <Box><Text as="span" tone="subdued">Labour</Text><div>{gbp(loss.labour)}</div></Box>
-                <Box><Text as="span" tone="subdued">Machine</Text><div>{gbp(loss.machine)}</div></Box>
-                <Box><Text as="span" tone="subdued">Shipping</Text><div>{gbp(loss.shipping)}</div></Box>
-                <Box><Text as="span" variant="headingSm">True loss</Text><div><Text as="span" variant="headingSm">{gbp(loss.total)}</Text></div></Box>
-              </InlineGrid>
+              {showCosts ? (
+                <InlineGrid columns={{ xs: 2, sm: 5 }} gap="300">
+                  <Box><Text as="span" tone="subdued">Material</Text><div>{gbp(loss.material)}</div></Box>
+                  <Box><Text as="span" tone="subdued">Labour</Text><div>{gbp(loss.labour)}</div></Box>
+                  <Box><Text as="span" tone="subdued">Machine</Text><div>{gbp(loss.machine)}</div></Box>
+                  <Box><Text as="span" tone="subdued">Shipping</Text><div>{gbp(loss.shipping)}</div></Box>
+                  <Box><Text as="span" variant="headingSm">Loss</Text><div><Text as="span" variant="headingSm">{gbp(loss.total)}</Text></div></Box>
+                </InlineGrid>
+              ) : (
+                <Box><Text as="span" variant="headingSm">Loss</Text><div><Text as="span" variant="headingMd">{gbp(loss.total)}</Text></div></Box>
+              )}
               <Text as="p" variant="bodySm" tone="subdued">Completed by {r.completedBy} on {r.completedAt ? new Date(r.completedAt).toLocaleDateString("en-GB") : "—"}</Text>
             </BlockStack>
           </Card>

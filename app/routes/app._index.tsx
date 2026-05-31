@@ -11,13 +11,25 @@ import db from "../db.server";
 import { getSettings, ensureSeeded } from "../lib/settings.server";
 import { computeLoss, gbp, REASONS } from "../lib/loss";
 
-// Build the Shopify admin URL for an order from its GID.
-function orderAdminUrl(shop: string, orderGid: string | null): string | null {
-  if (!orderGid) return null;
-  const id = orderGid.split("/").pop();
-  if (!id) return null;
+// Build a Shopify admin link for an order. Prefer a direct link by GID; if no
+// GID was stored (older reprints), fall back to an order search by name so the
+// number is still clickable.
+function orderAdminUrl(
+  shop: string,
+  orderName: string | null,
+  orderGid: string | null,
+): string | null {
   const handle = shop.replace(".myshopify.com", "");
-  return `https://admin.shopify.com/store/${handle}/orders/${id}`;
+  if (orderGid) {
+    const id = orderGid.split("/").pop();
+    if (id) return `https://admin.shopify.com/store/${handle}/orders/${id}`;
+  }
+  if (orderName) {
+    return `https://admin.shopify.com/store/${handle}/orders?query=${encodeURIComponent(
+      orderName.replace(/^#/, ""),
+    )}`;
+  }
+  return null;
 }
 
 export const loader = async ({ request }: LoaderFunctionArgs) => {
@@ -49,7 +61,7 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
     requests: requests.map((r) => ({
       ...r,
       loss: computeLoss(r, rates).total,
-      orderUrl: orderAdminUrl(shop, r.orderGid),
+      orderUrl: orderAdminUrl(shop, r.orderName, r.orderGid),
     })),
     kpis: { totalLoss, metres, hours: minutes / 60, shipping, completed: done.length, pendingCount },
     filter,
@@ -73,9 +85,9 @@ export default function Index() {
   const kpiCards = [
     { label: "Open requests", value: String(kpis.pendingCount) },
     { label: "Completed", value: String(kpis.completed) },
+    { label: "Film used", value: `${kpis.metres.toFixed(1)} m` },
     { label: "Time lost", value: `${kpis.hours.toFixed(1)} h` },
-    { label: "Shipping lost", value: gbp(kpis.shipping) },
-    { label: "True loss", value: gbp(kpis.totalLoss) },
+    { label: "Loss", value: gbp(kpis.totalLoss) },
   ];
 
   const rowMarkup = requests.map((r, i) => (
@@ -156,7 +168,7 @@ export default function Index() {
               selectable={false}
               headings={[
                 { title: "Order" }, { title: "Reason" }, { title: "Raised by" },
-                { title: "Status" }, { title: "Length" }, { title: "True loss" },
+                { title: "Status" }, { title: "Length" }, { title: "Loss" },
               ]}
             >
               {rowMarkup}

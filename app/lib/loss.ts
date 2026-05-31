@@ -41,6 +41,23 @@ export function computeLoss(
   };
 }
 
+export type TimeModel = {
+  processingMin: number;
+  ripMinPerM: number;
+  printSpeedMph: number;
+  packMin: number;
+};
+
+// Auto-estimate the minutes a reprint takes from its length:
+//   processing (fixed) + rip (per metre) + printing (length / speed) + pack (fixed)
+export function estimateMinutes(lengthM: number, t: TimeModel): number {
+  const L = Number.isFinite(lengthM) && lengthM > 0 ? lengthM : 0;
+  const printing = t.printSpeedMph > 0 ? (L / t.printSpeedMph) * 60 : 0;
+  const rip = L * (t.ripMinPerM ?? 0);
+  const mins = (t.processingMin ?? 0) + rip + printing + (t.packMin ?? 0);
+  return Math.round(mins * 10) / 10;
+}
+
 export const REASONS: { value: string; label: string }[] = [
   { value: "misprint", label: "Misprint" },
   { value: "colour", label: "Colour off" },
