@@ -1,0 +1,99 @@
+/* DTF Now brand layer over Polaris — CMYK accents + light/dark toggle.
+   Polaris exposes stable class names and CSS design tokens, so we brand by
+   overriding tokens (reliable) plus a few light class touches. */
+
+:root {
+  --dtf-cyan: #29abe2;
+  --dtf-magenta: #ec008c;
+  --dtf-yellow: #fff101;
+  --dtf-ink: #1a1d21;
+
+  /* Primary actions / brand fills → DTF magenta */
+  --p-color-bg-fill-brand: #ec008c;
+  --p-color-bg-fill-brand-hover: #cf007d;
+  --p-color-bg-fill-brand-active: #b3006b;
+  --p-color-bg-fill-brand-selected: #b3006b;
+  --p-color-border-focus: #29abe2;
+  --p-color-icon-brand: #ec008c;
+  --p-color-text-brand: #b3006b;
+}
+
+/* Softer, more modern cards */
+.Polaris-Card {
+  border-radius: 14px !important;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.04), 0 6px 16px rgba(0, 0, 0, 0.05) !important;
+}
+
+/* KPI tiles: CMYK accent strip across the top */
+.dtf-kpis .Polaris-Card {
+  position: relative;
+  overflow: hidden;
+}
+.dtf-kpis .Polaris-Card::before {
+  content: "";
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 4px;
+  background: linear-gradient(90deg, var(--dtf-cyan), var(--dtf-magenta) 52%, var(--dtf-yellow));
+}
+
+/* Floating theme toggle */
+.dtf-theme-toggle {
+  position: fixed;
+  right: 18px;
+  bottom: 18px;
+  z-index: 9999;
+  width: 44px;
+  height: 44px;
+  border-radius: 50%;
+  border: 1px solid var(--p-color-border, #d9dbde);
+  background: var(--p-color-bg-surface, #ffffff);
+  color: var(--p-color-text, #1a1d21);
+  cursor: pointer;
+  font-size: 19px;
+  line-height: 1;
+  box-shadow: 0 3px 10px rgba(0, 0, 0, 0.18);
+  transition: transform 0.12s ease;
+}
+.dtf-theme-toggle:hover { transform: scale(1.06); }
+
+/* ---------- DARK THEME (token overrides) ---------- */
+html[data-theme="dark"] {
+  color-scheme: dark;
+
+  --p-color-bg: #14161a;
+  --p-color-bg-surface: #1d2024;
+  --p-color-bg-surface-secondary: #24272c;
+  --p-color-bg-surface-tertiary: #2a2e34;
+  --p-color-bg-surface-hover: #262a30;
+  --p-color-bg-surface-active: #2c3036;
+  --p-color-bg-surface-selected: #2a2e34;
+  --p-color-bg-surface-disabled: #1a1d21;
+  --p-color-bg-fill: #1d2024;
+  --p-color-bg-fill-secondary: #24272c;
+  --p-color-bg-fill-transparent-secondary: rgba(255, 255, 255, 0.06);
+  --p-color-bg-input: #1d2024;
+
+  --p-color-text: #e8eaed;
+  --p-color-text-secondary: #aab1b8;
+  --p-color-text-disabled: #6b7178;
+  --p-color-text-emphasis: #5cc2f2;
+
+  --p-color-border: #2f343b;
+  --p-color-border-secondary: #24272c;
+  --p-color-border-hover: #3a4047;
+
+  --p-color-input-bg-surface: #1d2024;
+  --p-color-bg-surface-secondary-hover: #262a30;
+}
+
+html[data-theme="dark"] body {
+  background: #14161a;
+}
+
+/* keep the KPI accent strip vivid in dark mode */
+html[data-theme="dark"] .dtf-kpis .Polaris-Card::before {
+  opacity: 0.95;
+}
