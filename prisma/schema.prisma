@@ -60,6 +60,7 @@ model ReprintRequest {
   trackingNumber  String?
   trackingCarrier String?   // dpd | royal_mail | other (for the track link)
   customerEmail   String?   // captured from the order at raise time (for the email)
+  customerNotified Boolean  @default(false) // has the customer been emailed the link
 
   slackTs     String?
 

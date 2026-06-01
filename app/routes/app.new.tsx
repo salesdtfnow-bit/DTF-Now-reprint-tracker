@@ -3,7 +3,7 @@ import type { ActionFunctionArgs, LoaderFunctionArgs } from "@remix-run/node";
 import { redirect } from "@remix-run/node";
 import { useActionData, useNavigation, useSubmit } from "@remix-run/react";
 import {
-  Page, Card, FormLayout, TextField, Select, Button, BlockStack, Banner, Text,
+  Page, Card, FormLayout, TextField, Select, Button, BlockStack, Banner, Text, Checkbox,
 } from "@shopify/polaris";
 
 import { randomBytes } from "crypto";
@@ -69,10 +69,12 @@ export const action = async ({ request }: ActionFunctionArgs) => {
   });
   if (ts) await db.reprintRequest.update({ where: { id: created.id }, data: { slackTs: ts } });
 
-  // Email the customer their tracking link (best-effort).
-  if (customerEmail && process.env.SHOPIFY_APP_URL) {
+  // Email the customer their tracking link — only if staff chose to notify.
+  const notify = String(form.get("notify")) === "yes";
+  if (notify && customerEmail && process.env.SHOPIFY_APP_URL) {
     const trackUrl = `${process.env.SHOPIFY_APP_URL.replace(/\/$/, "")}/track/${publicToken}`;
-    await sendTrackingEmail({ to: customerEmail, orderName, trackUrl });
+    const ok = await sendTrackingEmail({ to: customerEmail, orderName, trackUrl });
+    if (ok) await db.reprintRequest.update({ where: { id: created.id }, data: { customerNotified: true } });
   }
 
   return redirect(`/app/${created.id}`);
@@ -87,6 +89,7 @@ export default function NewReprint() {
   const [reason, setReason] = useState("misprint");
   const [notes, setNotes] = useState("");
   const [raisedBy, setRaisedBy] = useState("");
+  const [notify, setNotify] = useState(true);
 
   const onSubmit = () => {
     const fd = new FormData();
@@ -94,6 +97,7 @@ export default function NewReprint() {
     fd.set("reason", reason);
     fd.set("notes", notes);
     fd.set("raisedBy", raisedBy);
+    fd.set("notify", notify ? "yes" : "no");
     submit(fd, { method: "post" });
   };
 
@@ -111,8 +115,11 @@ export default function NewReprint() {
               multiline={3} placeholder="What went wrong?" />
             <TextField label="Your name" value={raisedBy} onChange={setRaisedBy}
               autoComplete="off" placeholder="e.g. Hannah" />
+            <Checkbox label="Notify customer by email (sends the tracking link)"
+              checked={notify} onChange={setNotify}
+              helpText="Untick for internal-only reprints, e.g. in-house damage." />
             <Text as="p" variant="bodySm" tone="subdued">
-              Raising posts an alert to Slack #reprint-request so the team is notified.
+              Raising always posts an alert to Slack #reprint-request for staff.
             </Text>
             <Button variant="primary" loading={submitting} onClick={onSubmit}>Raise reprint</Button>
           </FormLayout>

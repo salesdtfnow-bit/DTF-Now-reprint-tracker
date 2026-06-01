@@ -14,6 +14,7 @@ import { listEmployees } from "../lib/employees.server";
 import { listShipping } from "../lib/shipping.server";
 import { lookupOrderByName } from "../lib/orders.server";
 import { postCompletionUpdate } from "../lib/slack.server";
+import { sendTrackingEmail } from "../lib/email.server";
 import { computeLoss, estimateMinutes, gbp, REASONS } from "../lib/loss";
 import { isUnlocked, pinConfigured } from "../lib/pin.server";
 import { PROGRESS_STAGES, deriveCarrier } from "../lib/tracking";
@@ -71,6 +72,8 @@ export const loader = async ({ request, params }: LoaderFunctionArgs) => {
     publicTrackUrl: r.publicToken && process.env.SHOPIFY_APP_URL
       ? `${process.env.SHOPIFY_APP_URL.replace(/\/$/, "")}/track/${r.publicToken}`
       : null,
+    customerNotified: r.customerNotified,
+    hasEmail: !!r.customerEmail,
   };
 };
 
@@ -80,6 +83,16 @@ export const action = async ({ request, params }: ActionFunctionArgs) => {
   const form = await request.formData();
   const r = await db.reprintRequest.findFirst({ where: { id: params.id, shop } });
   if (!r) throw new Response("Not found", { status: 404 });
+
+  // Email the customer the tracking link now (manual notify).
+  if (String(form.get("_action")) === "notify") {
+    if (!r.customerEmail) return { error: "No customer email on this reprint." };
+    if (!r.publicToken || !process.env.SHOPIFY_APP_URL) return { error: "Tracking link unavailable." };
+    const trackUrl = `${process.env.SHOPIFY_APP_URL.replace(/\/$/, "")}/track/${r.publicToken}`;
+    const ok = await sendTrackingEmail({ to: r.customerEmail, orderName: r.orderName, trackUrl });
+    if (ok) await db.reprintRequest.update({ where: { id: r.id }, data: { customerNotified: true } });
+    return redirect(`/app/${r.id}`);
+  }
 
   // Update customer-facing progress + tracking (any staff).
   if (String(form.get("_action")) === "progress") {
@@ -140,7 +153,7 @@ export const action = async ({ request, params }: ActionFunctionArgs) => {
 const reasonLabel = (v: string) => REASONS.find((x) => x.value === v)?.label ?? v;
 
 export default function Detail() {
-  const { r, order, orderUrl, loss, employees, shipping, time, showCosts, publicTrackUrl } = useLoaderData<typeof loader>();
+  const { r, order, orderUrl, loss, employees, shipping, time, showCosts, publicTrackUrl, customerNotified, hasEmail } = useLoaderData<typeof loader>();
   const nav = useNavigation();
   const submit = useSubmit();
   const submitting = nav.state === "submitting";
@@ -197,6 +210,11 @@ export default function Detail() {
     fd.set("progress", progress);
     fd.set("trackingNumber", trackingNumber);
     fd.set("trackingCarrier", trackingCarrier);
+    submit(fd, { method: "post" });
+  };
+  const emailCustomer = () => {
+    const fd = new FormData();
+    fd.set("_action", "notify");
     submit(fd, { method: "post" });
   };
 
@@ -282,6 +300,16 @@ export default function Detail() {
                   Customer link: <Link url={publicTrackUrl} target="_blank">{publicTrackUrl}</Link>
                 </Text>
               ) : null}
+              <Text as="p" variant="bodySm" tone="subdued">
+                {customerNotified ? "Customer notified by email ✓" : "Customer not notified."}
+              </Text>
+              {hasEmail ? (
+                <Button onClick={emailCustomer} loading={submitting}>
+                  {customerNotified ? "Re-send tracking email" : "Email tracking link to customer"}
+                </Button>
+              ) : (
+                <Text as="p" variant="bodySm" tone="subdued">No customer email on this order — can't email.</Text>
+              )}
             </FormLayout>
           </BlockStack>
         </Card>
