@@ -136,16 +136,14 @@ export const action = async ({ request, params }: ActionFunctionArgs) => {
     },
   });
 
-  // Mirror completion to the Slack alert thread (best-effort).
-  if (r.slackTs) {
+  // Mirror completion to Discord #reprints and the Slack alert thread, if any (best-effort).
+  try {
     const settings = await getSettings(shop);
-    try {
-      await postCompletionUpdate({
-        channelId: settings.slackChannelId, threadTs: r.slackTs,
-        reposted, lengthM, minutes, completedBy,
-      });
-    } catch (e) { /* non-fatal */ }
-  }
+    await postCompletionUpdate({
+      channelId: settings.slackChannelId, threadTs: r.slackTs, orderName: r.orderName,
+      reposted, lengthM, minutes, completedBy,
+    });
+  } catch (e) { /* non-fatal */ }
 
   return redirect(`/app/${updated.id}`);
 };
