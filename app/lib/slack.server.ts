@@ -2,6 +2,8 @@
 // (chat.postMessage). Set SLACK_BOT_TOKEN in the environment and invite the
 // bot to the channel. Threading uses the returned message ts.
 
+import { postDiscord, esc } from "./discord.server";
+
 const SLACK_API = "https://slack.com/api";
 
 type PostResult = { ok: boolean; ts?: string; error?: string };
@@ -52,6 +54,20 @@ export async function postReprintAlert(opts: {
     opts.appUrl ? `<${opts.appUrl}|Open in Reprint Tracker →>` : null,
   ].filter(Boolean);
 
+  // Discord #reprints (if DISCORD_REPRINT_WEBHOOK_URL is set).
+  await postDiscord(
+    [
+      `🖨️ **New reprint raised**`,
+      opts.orderName ? `**Order:** ${esc(opts.orderName)}` : null,
+      `**Reason:** ${REASON_LABELS[opts.reason] ?? esc(opts.reason)}`,
+      opts.notes ? `**Notes:** ${esc(opts.notes)}` : null,
+      opts.raisedBy ? `**Raised by:** ${esc(opts.raisedBy)}` : null,
+      opts.appUrl ? `[Open in Reprint Tracker](<${opts.appUrl}>)` : null,
+    ].filter(Boolean).join("\n"),
+  );
+
+  // Slack #reprint-request (only if SLACK_BOT_TOKEN is still set).
+  if (!process.env.SLACK_BOT_TOKEN) return null;
   const result = await slackPost("chat.postMessage", {
     channel: opts.channelId,
     text: lines.join("\n"),
@@ -60,16 +76,21 @@ export async function postReprintAlert(opts: {
   return result.ok && result.ts ? result.ts : null;
 }
 
-// Reply in the alert thread when the job is completed/written off.
+// When the job is completed/written off: a line in Discord #reprints, and a reply in the Slack alert thread (if any).
 export async function postCompletionUpdate(opts: {
   channelId: string;
-  threadTs: string;
+  threadTs?: string | null;
+  orderName?: string | null;
   reposted: boolean;
   lengthM: number;
   minutes: number;
   completedBy: string;
 }): Promise<void> {
   const verb = opts.reposted ? "Reprinted" : "Written off";
+  await postDiscord(
+    `✅ **${verb}**${opts.orderName ? ` ${esc(opts.orderName)}` : ""} — ${opts.lengthM} m, ${opts.minutes} min, by ${esc(opts.completedBy)}`,
+  );
+  if (!opts.threadTs || !process.env.SLACK_BOT_TOKEN) return;
   const text =
     `:white_check_mark: *${verb}* — ${opts.lengthM} m, ${opts.minutes} min, by ${opts.completedBy}`;
   await slackPost("chat.postMessage", {
